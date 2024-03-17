@@ -38,6 +38,8 @@ patchfiles-append   patch-python-respect-cc-variable.diff
 
 patchfiles-append   patch-avoid-overlinking-abseil.diff
 
+patchfiles-append   patch-support-arm64.diff
+
 # error: constexpr function never produces a constant expression
 # Requires c++17 support
 compiler.cxx_standard  2017
@@ -162,7 +164,7 @@ variant test description {Build and run unit testing framework} {
 }
 
 # create Python subports
-set python_versions {27}
+set python_versions {27 37 38 39 310}
 
 # Python modules grpcio and grpcio-tools
 foreach v ${python_versions} {
@@ -203,10 +205,12 @@ foreach v ${python_versions} {
 
 # common settings for all Python ports
 if {[string match "py*" ${subport}]} {
-    pre-patch {
-        reinplace "s|import pathlib|import pathlib2 as pathlib|g" ${worksrcpath}/setup.py
-        reinplace "s|pathlib\\.Path('/usr')\\.glob('lib\\*/libabsl_\\*\\.so')|sorted(pathlib\\.Path('/usr')\\.glob('lib\\*/libabsl_\\*\\.so'))+sorted(pathlib\\.Path('/usr')\\.glob('lib\\*/libabsl_\\*\\.dylib'))|g" ${worksrcpath}/setup.py
+    post-patch {
         reinplace "s|/usr|${prefix}|g" ${worksrcpath}/setup.py
+
+        if {${python.version} < 30} {
+            reinplace "s|import pathlib|import pathlib2 as pathlib|g" ${worksrcpath}/setup.py
+        }
     }
 
     use_configure   yes
@@ -254,22 +258,34 @@ if {[string match "py*" ${subport}]} {
 if {[string match "py*${name_io}" ${subport}]} {
     depends_build-append \
                     port:py${python.version}-coverage \
-                    port:py${python.version}-cython-compat \
-                    port:py${python.version}-setuptools \
-                    port:py${python.version}-pathlib2
+                    port:py${python.version}-setuptools
 
     depends_lib-append \
-                    port:py${python.version}-cython-compat \
                     port:py${python.version}-protobuf3 \
-                    port:py${python.version}-six \
-                    port:py${python.version}-enum34
+                    port:py${python.version}-six
+
+    if {${python.version} < 30} {
+        depends_build-append \
+                        port:py${python.version}-cython-compat \
+                        port:py${python.version}-pathlib2
+
+        depends_lib-append \
+                        port:py${python.version}-cython-compat \
+                        port:py${python.version}-enum34
+
+        set compat_path [string replace ${python.pkgd} 0 [string length ${python.prefix}]-1 ${prefix}/lib/py${python.version}-cython-compat]
+        build.env-append    PYTHONPATH=${compat_path}
+        destroot.env-append PYTHONPATH=${compat_path}
+    } else {
+        depends_build-append \
+                        port:py${python.version}-cython
+
+        depends_lib-append \
+                        port:py${python.version}-cython
+    }
 
     depends_test-append \
                     port:py${python.version}-twisted
-
-    set compat_path [string replace ${python.pkgd} 0 [string length ${python.prefix}]-1 ${prefix}/lib/py${python.version}-cython-compat]
-    build.env-append    PYTHONPATH=${compat_path}
-    destroot.env-append PYTHONPATH=${compat_path}
 }
 
 # Python bindings for grpcio-tools
@@ -278,13 +294,19 @@ if {[string match "py*-${name_io}-tools" ${subport}]} {
                     protobuf
 
     depends_build-append \
-                    port:py${python.version}-setuptools \
-                    port:py${python.version}-pathlib2
+                    port:py${python.version}-setuptools
 
     depends_lib-append \
                     port:py${python.version}-${name_io} \
-                    port:py${python.version}-protobuf3 \
-                    port:py${python.version}-enum34
+                    port:py${python.version}-protobuf3
+
+    if {${python.version} < 30} {
+        depends_build-append \
+                        port:py${python.version}-pathlib2
+
+        depends_lib-append \
+                        port:py${python.version}-enum34
+    }
 
     # Build instructions:
     # https://github.com/grpc/grpc/tree/master/tools/distrib/python/grpcio_tools

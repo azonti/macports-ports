@@ -1,0 +1,11 @@
+--- setup.py.orig	2024-03-18 03:56:26
++++ setup.py	2024-03-18 03:57:14
+@@ -341,7 +341,7 @@
+     EXTENSION_LIBRARIES += ('re2',)
+ if BUILD_WITH_SYSTEM_ABSL:
+     EXTENSION_LIBRARIES += tuple(
+-        lib.stem[3:] for lib in pathlib.Path('/usr').glob('lib*/libabsl_*.so'))
++        lib.stem[3:] for lib in sorted(pathlib.Path('/usr').glob('lib*/libabsl_*.so'))+sorted(pathlib.Path('/usr').glob('lib*/libabsl_*.dylib')))
+ 
+ DEFINE_MACROS = (('_WIN32_WINNT', 0x600),)
+ asm_files = []
